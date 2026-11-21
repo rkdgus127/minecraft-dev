@@ -50,7 +50,25 @@ class MinecraftConfigurable : Configurable {
     @Nls
     override fun getDisplayName() = MCDevBundle("minecraft.settings.display_name")
 
-    override fun createComponent(): JComponent = panel {
+    override fun createComponent(): JComponent {
+        val settings = MinecraftSettings.instance
+
+        return panel {
+            createHeader()
+
+            createGeneralSettings(settings)
+
+            createChatSettings(settings)
+
+            createMixinSettings(settings)
+
+            createCreatorSettings(settings)
+        }.also {
+            panel = it
+        }
+    }
+
+    private fun com.intellij.ui.dsl.builder.Panel.createHeader() {
         row(
             JLabel(
                 MCDevBundle("minecraft.settings.title"),
@@ -64,25 +82,35 @@ class MinecraftConfigurable : Configurable {
                 ConfigurePluginUpdatesDialog().show()
             }.align(AlignX.RIGHT)
         }.bottomGap(BottomGap.MEDIUM)
+    }
 
-        val settings = MinecraftSettings.instance
-
+    private fun com.intellij.ui.dsl.builder.Panel.createGeneralSettings(
+        settings: MinecraftSettings
+    ) {
         row {
             checkBox(MCDevBundle("minecraft.settings.show_project_platform_icons"))
                 .bindSelected(settings::isShowProjectPlatformIcons)
         }
+
         row {
             checkBox(MCDevBundle("minecraft.settings.show_event_listener_gutter_icons"))
                 .bindSelected(settings::isShowEventListenerGutterIcons)
         }
+    }
+
+    private fun com.intellij.ui.dsl.builder.Panel.createChatSettings(
+        settings: MinecraftSettings
+    ) {
         row {
             checkBox(MCDevBundle("minecraft.settings.show_chat_color_gutter_icons"))
                 .bindSelected(settings::isShowChatColorGutterIcons)
         }
+
         row {
             checkBox(MCDevBundle("minecraft.settings.show_chat_color_underlines"))
                 .bindSelected(settings::isShowChatColorUnderlines)
         }
+
         row {
             checkBox(MCDevBundle("minecraft.settings.force_external_annotations"))
                 .bindSelected(settings::forceExternalAnnotations)
@@ -92,51 +120,71 @@ class MinecraftConfigurable : Configurable {
         group(indent = false) {
             row(MCDevBundle("minecraft.settings.chat_color_underline_style")) {
                 comboBox(EnumComboBoxModel(MinecraftSettings.UnderlineType::class.java))
-                    .bindItem(settings::underlineType) { settings.underlineType = it!! }
+                    .bindItem(settings::underlineType) { selected ->
+                        selected?.let { settings.underlineType = it }
+                    }
                     .align(AlignX.LEFT)
             }
         }
+    }
 
+    private fun com.intellij.ui.dsl.builder.Panel.createMixinSettings(
+        settings: MinecraftSettings
+    ) {
         group(MCDevBundle("minecraft.settings.mixin")) {
             row {
                 checkBox(MCDevBundle("minecraft.settings.mixin.mixin_class_icon"))
                     .bindSelected(settings::mixinClassIcon)
             }
         }
+    }
 
+    private fun com.intellij.ui.dsl.builder.Panel.createCreatorSettings(
+        settings: MinecraftSettings
+    ) {
         group(MCDevBundle("minecraft.settings.creator")) {
             twoColumnsRow(
                 { label(MCDevBundle("minecraft.settings.creator.repos")) },
-                { label(MCDevBundle("minecraft.settings.creator.maven")) },
+                { label(MCDevBundle("minecraft.settings.creator.maven")) }
             )
 
-            twoColumnsRow({
-                templateRepoTable(
-                    MutableProperty(
-                        { settings.creatorTemplateRepos.toMutableList() },
-                        { settings.creatorTemplateRepos = it }
+            twoColumnsRow(
+                {
+                    templateRepoTable(
+                        MutableProperty(
+                            { settings.creatorTemplateRepos.toMutableList() },
+                            { settings.creatorTemplateRepos = it }
+                        )
                     )
-                )
-            }, {
-                mavenRepoTable(
-                    MutableProperty(
-                        { settings.creatorMavenRepos.toMutableList() },
-                        { settings.creatorMavenRepos = it }
+                },
+                {
+                    mavenRepoTable(
+                        MutableProperty(
+                            { settings.creatorMavenRepos.toMutableList() },
+                            { settings.creatorMavenRepos = it }
+                        )
                     )
-                )
-            }).resizableRow()
+                }
+            ).resizableRow()
         }
-
-        onApply {
-            for (project in ProjectManager.getInstance().openProjects) {
-                ProjectView.getInstance(project).refresh()
-            }
-        }
-    }.also { panel = it }
+    }
 
     override fun isModified(): Boolean = panel.isModified()
 
-    override fun apply() = panel.apply()
+    override fun apply() {
+        val settings = MinecraftSettings.instance
+        val previousPlatformIcons = settings.isShowProjectPlatformIcons
 
-    override fun reset() = panel.reset()
+        panel.apply()
+
+        if (previousPlatformIcons != settings.isShowProjectPlatformIcons) {
+            ProjectManager.getInstance().openProjects.forEach { project ->
+                ProjectView.getInstance(project).refresh()
+            }
+        }
+    }
+
+    override fun reset() {
+        panel.reset()
+    }
 }
